@@ -3,6 +3,7 @@ const crawler = require("@/utils/crawler");
 const QuarterList = require("@/sequelize/quarterList");
 const AnimeSchedule = require("@/sequelize/animeSchedule");
 const Anime = require("@/sequelize/anime");
+const { searchMultiByAlias } = require("./captureTmdb");
 
 // 格式化 Kisssub 特殊名字日期
 const formatKissName = (data, quarterList) => {
@@ -90,6 +91,17 @@ const updateFanGroupToMysql = async (data) => {
   };
 };
 
+// 根据番名抓取 tmdb 对应的简短信息
+const getSimpleInfoByName = async ({ name, alias }) => {
+  const aliasResult = await searchMultiByAlias(alias);
+
+  if (aliasResult.page > 0) {
+    const team = aliasResult.find((list) => list.original_name);
+
+    console.log(team);
+  }
+};
+
 // 根据番组信息抓取动漫数据
 const captureAnimeByGroup = async (bgmId) => {
   return new Promise((resolve, reject) => {
@@ -131,6 +143,8 @@ const captureAnimeByGroup = async (bgmId) => {
 
               const name = alias.replaceAll(seasonReg, "").trim();
               const updateWeek = week.replaceAll(updateWeekReg, "").trim();
+
+              await getSimpleInfoByName({ alias, name });
 
               result.push({
                 alias,
