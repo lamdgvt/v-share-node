@@ -9,17 +9,12 @@ const { addAliases } = require("module-alias");
 addAliases({ "@": __dirname });
 
 const requestInterceptor = require("./middlewares/requestInterceptor");
-const startScheduler = require("./timers/startScheduler");
-const {
-  captureFanGroup,
-  updateFanGroupToMysql,
-} = require("./controllers/captureKisssub");
-
 app.use(requestInterceptor);
 
 const index = require("./routes/index");
 const users = require("./routes/users");
 const kisssub = require("./routes/anime");
+const { captureFanGroupTimeTask } = require("./controllers/timersCapture");
 
 // error handler
 onerror(app);
@@ -58,9 +53,7 @@ app.on("error", (err, ctx) => {
   console.error("server error", err, ctx);
 });
 
-startScheduler(async () => {
-  const data = captureFanGroup();
-  updateFanGroupToMysql(data);
-});
+// 定时任务
+captureFanGroupTimeTask();
 
 module.exports = app;

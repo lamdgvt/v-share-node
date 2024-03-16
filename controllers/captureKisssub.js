@@ -93,75 +93,123 @@ const updateFanGroupToMysql = async (data) => {
 
 // 根据番名抓取 tmdb 对应的简短信息
 const getSimpleInfoByName = async ({ name, alias }) => {
-  const aliasResult = await searchMultiByAlias(alias);
+  // 默认值
+  const result = {
+    tmdbId: null,
+    backdropPath: "",
+    posterPath: "",
+    overview: "",
+    mediaType: "",
+  };
 
-  if (aliasResult.page > 0) {
-    const team = aliasResult.find((list) => list.original_name);
+  // 默认先搜索 alias 别名, 如无结果 按 name 原名再搜一遍
+  let requestResult = null;
+  requestResult = await searchMultiByAlias({ query: alias });
 
-    console.log(team);
+  if (!requestResult.results.length)
+    requestResult = await searchMultiByAlias({ query: name });
+
+  // 处理返回值
+  if (requestResult.results.length >= 1) {
+    let team = requestResult.results.find((list) => list.original_name);
+
+    if (!team) team = requestResult.results[0];
+
+    Object.assign(result, {
+      tmdbId: team.id,
+      backdropPath: team.backdrop_path,
+      posterPath: team.poster_path,
+      overview: team.overview,
+      mediaType: team.media_type,
+    });
   }
+
+  return result;
 };
 
 // 根据番组信息抓取动漫数据
 const captureAnimeByGroup = async (bgmId) => {
   return new Promise((resolve, reject) => {
-    crawler.queue([
-      {
-        uri: `https://www.kisssub.org/addon.php?r=bangumi/table&bgm_id=${bgmId}`,
-        callback: async (error, res, done) => {
-          if (error) reject(error);
+    try {
+      crawler.queue([
+        {
+          uri: `https://www.kisssub.org/addon.php?r=bangumi/table&bgm_id=${bgmId}`,
+          callback: async (error, res, done) => {
+            if (error) reject(error);
 
-          const { $ } = res;
+            const { $ } = res;
 
-          const result = [];
-          const reg = /\n\s{1,}/gi;
-          const seasonReg = /(第[0-9]季)|(Part.[0-9])|(\S{1,}篇)/gi;
-          const continueReg = /[0-9]{1,2}月新番/gi;
-          const updateWeekReg = /\（(金|木|水|火|土|日|月)\）/gi;
+            const result = [];
+            const reg = /\n\s{1,}/gi;
 
-          const bgmTable = $("#bgm-table");
-          const weekDl = bgmTable.find("dl");
+            const seasonReg =
+              /(第(最终|[0-9一二三四五六七八九十])+(季|期|系列|作))|([壹贰叁肆伍陆柒捌玖拾]+之章)|(Part.[0-9])|([0-9]+nd)|(Season\s?[0-9]+)|(ⅡⅢⅣⅤⅥⅦⅧⅨⅩ)|(\S{1,}篇)/gi;
+            const continueReg = /[0-9]{1,2}月新番/gi;
+            const updateWeekReg = /\（(金|木|水|火|土|日|月)\）/gi;
 
-          for (let i = 0; i < weekDl.length; i++) {
-            const team = weekDl[i];
+            const bgmTable = $("#bgm-table");
+            const weekDl = bgmTable.find("dl");
 
-            const dt = $(team).find("dt");
-            const animeDDA = $(team).find("dd a");
+            for (let i = 0; i < weekDl.length; i++) {
+              const team = weekDl[i];
 
-            const { data: week } = dt[0].children[0];
+              const dt = $(team).find("dt");
+              const animeDDA = $(team).find("dd a");
 
-            for (let i = 0; i < animeDDA.length; i++) {
-              const team = animeDDA[i];
+              const { data: week } = dt[0].children[0];
 
-              const alias = team.children[0].data.replaceAll(reg, "").trim();
+              for (let i = 0; i < animeDDA.length; i++) {
+                const team = animeDDA[i];
 
-              if (alias.match(continueReg)) continue;
+                const alias = team.children[0].data.replaceAll(reg, "").trim();
 
-              let season = alias.match(seasonReg);
-              if (season) season = Number(season[0].match(/[0-9]/gi)[0]);
-              else season = 1;
+                if (alias.match(continueReg)) continue;
 
-              const name = alias.replaceAll(seasonReg, "").trim();
-              const updateWeek = week.replaceAll(updateWeekReg, "").trim();
+                console.log(alias)
 
-              await getSimpleInfoByName({ alias, name });
+                let season = alias.match(seasonReg);
+                if (season) {
+                  const extra = season[0].match(/[0-9]/gi);
+                  if (extra) season = Number(extra[0]);
+                  else season = 1;
+                } else season = 1;
 
-              result.push({
-                alias,
-                bgmId,
-                name,
-                season,
-                updateWeek,
-              });
+                const name = alias.replaceAll(seasonReg, "").trim();
+                const updateWeek = week.replaceAll(updateWeekReg, "").trim();
+
+                const {
+                  tmdbId,
+                  backdropPath,
+                  posterPath,
+                  overview,
+                  mediaType,
+                } = await getSimpleInfoByName({ alias, name });
+
+                result.push({
+                  alias,
+                  bgmId,
+                  name,
+                  season,
+                  updateWeek,
+                  tmdbId,
+                  backdropPath,
+                  posterPath,
+                  overview,
+                  mediaType,
+                });
+              }
             }
-          }
 
-          resolve(result);
+            resolve(result);
 
-          done();
+            done();
+          },
         },
-      },
-    ]);
+      ]);
+    } catch (err) {
+      reject(err);
+      // console.log(err);
+    }
   });
 };
 

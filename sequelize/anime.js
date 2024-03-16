@@ -37,6 +37,30 @@ const Anime = sequelize.define(
       allowNull: false,
       field: "update_week",
     },
+    tmdbId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      field: "tmdb_id",
+    },
+    backdropPath: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      field: "backdrop_path",
+    },
+    posterPath: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      field: "poster_path",
+    },
+    overview: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    mediaType: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      field: "media_type",
+    },
   },
   tableConfig
 );
