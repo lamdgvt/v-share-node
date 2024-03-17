@@ -61,6 +61,11 @@ const Anime = sequelize.define(
       allowNull: true,
       field: "media_type",
     },
+    voteAverage: {
+      type: DataTypes.DECIMAL,
+      allowNull: true,
+      field: "vote_average",
+    },
   },
   tableConfig
 );

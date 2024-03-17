@@ -100,14 +100,18 @@ const getSimpleInfoByName = async ({ name, alias }) => {
     posterPath: "",
     overview: "",
     mediaType: "",
+    voteAverage: 0,
   };
 
-  // 默认先搜索 alias 别名, 如无结果 按 name 原名再搜一遍
+  // 先后顺序 alias、name、name.split(" ")[0] 搜索
   let requestResult = null;
   requestResult = await searchMultiByAlias({ query: alias });
 
   if (!requestResult.results.length)
     requestResult = await searchMultiByAlias({ query: name });
+
+  if (!requestResult.results.length)
+    requestResult = await searchMultiByAlias({ query: name.split(" ")[0] });
 
   // 处理返回值
   if (requestResult.results.length >= 1) {
@@ -121,6 +125,7 @@ const getSimpleInfoByName = async ({ name, alias }) => {
       posterPath: team.poster_path,
       overview: team.overview,
       mediaType: team.media_type,
+      voteAverage: team.vote_average,
     });
   }
 
@@ -131,9 +136,11 @@ const getSimpleInfoByName = async ({ name, alias }) => {
 const captureAnimeByGroup = async (bgmId) => {
   return new Promise((resolve, reject) => {
     try {
+      const requestId = bgmId === "nowaday" ? "" : bgmId;
+
       crawler.queue([
         {
-          uri: `https://www.kisssub.org/addon.php?r=bangumi/table&bgm_id=${bgmId}`,
+          uri: `https://www.kisssub.org/addon.php?r=bangumi/table&bgm_id=${requestId}`,
           callback: async (error, res, done) => {
             if (error) reject(error);
 
@@ -144,7 +151,7 @@ const captureAnimeByGroup = async (bgmId) => {
 
             const seasonReg =
               /(第(最终|[0-9一二三四五六七八九十])+(季|期|系列|作))|([壹贰叁肆伍陆柒捌玖拾]+之章)|(Part.[0-9])|([0-9]+nd)|(Season\s?[0-9]+)|(ⅡⅢⅣⅤⅥⅦⅧⅨⅩ)|(\S{1,}篇)/gi;
-            const continueReg = /[0-9]{1,2}月新番/gi;
+            const continueReg = /([0-9]+月新番)|(已配信→)|(即将配信→)/gi;
             const updateWeekReg = /\（(金|木|水|火|土|日|月)\）/gi;
 
             const bgmTable = $("#bgm-table");
@@ -163,9 +170,9 @@ const captureAnimeByGroup = async (bgmId) => {
 
                 const alias = team.children[0].data.replaceAll(reg, "").trim();
 
-                if (alias.match(continueReg)) continue;
+                if (!alias || alias.match(continueReg)) continue;
 
-                console.log(alias)
+                console.log(alias);
 
                 let season = alias.match(seasonReg);
                 if (season) {
@@ -183,6 +190,7 @@ const captureAnimeByGroup = async (bgmId) => {
                   posterPath,
                   overview,
                   mediaType,
+                  voteAverage,
                 } = await getSimpleInfoByName({ alias, name });
 
                 result.push({
@@ -196,6 +204,7 @@ const captureAnimeByGroup = async (bgmId) => {
                   posterPath,
                   overview,
                   mediaType,
+                  voteAverage,
                 });
               }
             }
@@ -236,9 +245,35 @@ const updateAnimeToMysql = async (animeList) => {
   return { doneData, skipData };
 };
 
+// 更新本季番信息至mysql 强制更新 先增后删
+const updateForceNowaday = async (data) => {
+  const doneData = [];
+  const deleteData = [];
+
+  const currentData = await Anime.findAll({
+    where: { bgmId: "nowaday" },
+  });
+
+  for (let team of data) {
+    await Anime.create(team);
+    doneData.push(team);
+  }
+
+  for (let team of currentData) {
+    await Anime.destroy({ where: { id: team.id } });
+    deleteData.push(team.id);
+  }
+
+  return {
+    doneData,
+    deleteData,
+  };
+};
+
 module.exports = {
   captureFanGroup,
   updateFanGroupToMysql,
   captureAnimeByGroup,
   updateAnimeToMysql,
+  updateForceNowaday,
 };

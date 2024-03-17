@@ -3,6 +3,7 @@ const {
   updateFanGroupToMysql,
   updateAnimeToMysql,
   captureAnimeByGroup,
+  updateForceNowaday,
 } = require("@/controllers/captureKisssub");
 
 function startScheduler(callback, delay, timers) {
@@ -36,6 +37,7 @@ function captureFanGroupTimeTask() {
 
     let gather = [];
 
+    // 根据番季信息获取对应的数据
     for (let team of groupData) {
       const result = await captureAnimeByGroup(team);
 
@@ -45,9 +47,17 @@ function captureFanGroupTimeTask() {
     const { doneData: anime } = await updateAnimeToMysql(gather);
 
     console.log(anime);
+
+    // 获取当前季度信息
+    const current = await captureAnimeByGroup("nowaday");
+
+    const { doneData: currentData, deleteData: currentDelete } =
+      await updateForceNowaday(current);
+
+    console.log(currentData, currentDelete);
   };
 
-  startScheduler(callback, delay, timers);
+  startScheduler(callback, 100, timers);
 }
 
 module.exports = {
